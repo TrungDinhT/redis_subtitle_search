@@ -5,13 +5,15 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/RediSearch/redisearch-go/redisearch"
 )
 
 func CreateNewDocument(id string, start string, sub string) redisearch.Document {
-	fmt.Printf("id: %s, start: %s, sub %s \n", id, start, sub)
+	fmt.Printf("id: %s, start: %s, sub: %s \n", id, start, sub)
 	doc := redisearch.NewDocument(id, 1.0)
 	doc.Set("start", start)
 	doc.Set("sub", sub)
@@ -38,6 +40,9 @@ func readData(filename string) []string {
 	return mapSubWithStart
 }
 
+// func SearchByWord(query string) []int {
+// }
+
 func ExampleClient() {
 
 	// Create a client. By default a client is schemaless
@@ -58,19 +63,37 @@ func ExampleClient() {
 	// Read data from test and index
 	data := readData("data/test1.txt")
 	for i := 0; i < len(data); i += 2 {
-		doc := CreateNewDocument("video_part"+strconv.Itoa(i), data[i], data[i+1])
+		doc := CreateNewDocument("video_part:"+strconv.Itoa(i/2), data[i], data[i+1])
 		if err := c.Index([]redisearch.Document{doc}...); err != nil {
 			log.Fatal(err)
 		}
 	}
 
-	// // Searching with limit and sorting
-	// docs, total, err := c.Search(redisearch.NewQuery("hello world").
-	// 	Limit(0, 2).
-	// 	SetReturnFields("title"))
+	// Read query from STDIN
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("Enter text search: ")
+	queryText, _ := reader.ReadString('\n')
 
-	// fmt.Println(docs[0].Id, docs[0].Properties["title"], total, err)
-	// // Output: doc1 Hello world 1 <nil>
+	space := regexp.MustCompile(`\s+`)
+	queryText = space.ReplaceAllString(queryText, " ")
+	queryText = strings.TrimSpace(queryText)
+	queryText = strings.Replace(queryText, " ", " | ", -1)
+
+	// fmt.Println(queryText)
+
+	query := redisearch.NewQuery(queryText)
+
+	// Searching for text
+	docs, total, err := c.Search(query)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Total results:", total)
+	for _, doc := range docs {
+		fmt.Println("Start at", doc.Properties["start"], "\tSub:", doc.Properties["sub"])
+	}
 }
 
 func main() {
