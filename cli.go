@@ -1,12 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"math/rand"
 	"strconv"
 	"time"
 
+	RSSClient "github.com/TrungDinhT/redis_subtitle_search/client"
 	"github.com/mattn/go-tty"
 )
 
@@ -32,6 +32,10 @@ loop:
 		phrase := <-phraseChan
 
 		if len(phrase) == 1 && (phrase[0] == 13 || phrase[0] == 27) {
+			for i := 0; i < len(results); i++ {
+				tty.Output().Write([]byte(MOVE_CURSOR_NEXT_LINE))
+			}
+			tty.Output().Write([]byte(NEW_LINE))
 			break loop
 		}
 
@@ -58,6 +62,9 @@ loop:
 
 func run(tty *tty.TTY, resultsChan chan []string, phraseChan chan []rune) {
 	var phrase []rune
+
+	c := RSSClient.Client()
+
 loop:
 	for {
 		r, err := tty.ReadRune()
@@ -79,8 +86,9 @@ loop:
 			phrase = append(phrase, r)
 		}
 		phraseChan <- phrase
-		resultsChan <- randomResult(phrase)
+		// resultsChan <- randomResult(phrase)
 
+		resultsChan <- RSSClient.Search(c, string(phrase))
 	}
 }
 
@@ -117,6 +125,7 @@ func main() {
 	rand.Seed(time.Now().UTC().UnixNano())
 
 	tty, err := tty.Open()
+	defer tty.Close()
 
 	if err != nil {
 		log.Fatal(err)
@@ -124,8 +133,6 @@ func main() {
 
 	phraseChan := make(chan []rune, 10)
 	resultsChan := make(chan []string, 10)
-
-	fmt.Println("Run")
 
 	go run(tty, resultsChan, phraseChan)
 
